@@ -1,5 +1,6 @@
 import itertools
 import json
+import yaml
 import re
 import subprocess
 import time
@@ -473,6 +474,38 @@ class StatusCheck(PolymorphicModel):
         null=True,
         help_text='HTTP(S) endpoint to poll.',
     )
+    http_method = models.CharField(
+        null=False,
+        max_length=10,
+        default='GET',
+        choices=(('GET', 'GET'), ('POST', 'POST'), ('HEAD', 'HEAD')),
+        help_text='The method to use for invocation.',
+    )
+    http_headers = models.TextField(
+        default=None,
+        null=True,
+        blank=True,
+        help_text='Yaml representation of "header: value" to send as headers.',
+    )
+    http_params = models.TextField(
+        default=None,
+        null=True,
+        blank=True,
+        help_text='Yaml representation of "key: value" to send as parameters.',
+    )
+    http_body_type = models.CharField(
+        null=False,
+        max_length=10,
+        default='Raw',
+        choices=(('Raw', 'Raw'), ('JSON', 'JSON'), ('YAML', 'YAML')),
+        help_text='The body type.',
+    )
+    http_body = models.TextField(
+        null=True,
+        default=None,
+        blank=True,
+        help_text='HTTP body.'
+    )
     username = models.TextField(
         blank=True,
         null=True,
@@ -764,14 +797,45 @@ class HttpStatusCheck(StatusCheck):
                     self.password if self.password is not None else '')
 
         try:
-            resp = requests.get(
-                self.endpoint,
+            http_params = yaml.load(self.http_params)
+        except:
+            http_params = self.http_params
+
+        http_body = self.http_body
+
+        if self.http_body_type == 'YAML':
+            try:
+                http_body = yaml.load(self.http_body)
+            except:
+                http_body = self.http_body
+        elif self.http_body_type == 'JSON':
+            try:
+                http_body = json.loads(self.http_body)
+            except:
+                http_body = self.http_body
+
+        headers = dict()
+        headers.update({
+            "User-Agent": settings.HTTP_USER_AGENT,
+        })
+
+        try:
+            headers.update(yaml.load(self.http_headers))
+        except:
+            headers.update({})
+
+        print(headers)
+
+        try:
+            resp = requests.request(
+                method=self.http_method,
+                url=self.endpoint,
+                data=http_body,
+                params=http_params,
                 timeout=self.timeout,
                 verify=self.verify_ssl_certificate,
                 auth=auth,
-                headers={
-                    "User-Agent": settings.HTTP_USER_AGENT,
-                },
+                headers=headers,
             )
         except requests.RequestException as e:
             result.error = u'Request error occurred: %s' % (e.message,)

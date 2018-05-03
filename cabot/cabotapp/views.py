@@ -126,6 +126,8 @@ base_widgets = {
         'style': 'width:30%',
     }),
     'importance': forms.RadioSelect(),
+    'http_body_type': forms.RadioSelect(),
+    'http_method': forms.RadioSelect(),
 }
 
 
@@ -207,6 +209,11 @@ class HttpStatusCheckForm(StatusCheckForm):
         fields = (
             'name',
             'endpoint',
+            'http_method',
+            'http_headers',
+            'http_params',
+            'http_body_type',
+            'http_body',
             'username',
             'password',
             'text_match',
