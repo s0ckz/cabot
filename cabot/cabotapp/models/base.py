@@ -19,7 +19,7 @@ from django.db.models.signals import post_save
 from django.utils import timezone
 from polymorphic.models import PolymorphicModel
 
-from ..alert import AlertPluginUserData, send_alert, send_alert_update
+from ..alert import AlertPlugin, AlertPluginUserData, send_alert, send_alert_update
 from ..calendar import get_events
 from ..graphite import parse_metric
 from ..tasks import update_instance, update_service
