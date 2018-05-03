@@ -6,6 +6,8 @@ import subprocess
 import time
 from datetime import timedelta
 
+import telebot
+
 import requests
 
 from celery.exceptions import SoftTimeLimitExceeded
@@ -91,6 +93,50 @@ def get_custom_check_plugins():
         custom_check_types.append(custom_check)
 
     return custom_check_types
+
+class TelegramAlert(AlertPlugin):
+    name = "Telegram"
+    author = "Mikel Larreategi"
+
+    def send_alert(self, service, users, duty_officers):
+        alert = True
+        telegram_aliases = []
+        users = list(users) + list(duty_officers)
+
+        telegram_aliases = [u.telegram_id for u in TelegramAlertUserData.objects.filter(user__user__in=users) if u.telegram_id]
+
+        if service.overall_status == service.WARNING_STATUS:
+            alert = False  # Don't alert at all for WARNING
+        if service.overall_status == service.ERROR_STATUS:
+            if service.old_overall_status in (service.ERROR_STATUS, service.ERROR_STATUS):
+                alert = False  # Don't alert repeatedly for ERROR
+        if service.overall_status == service.PASSING_STATUS:
+            if service.old_overall_status == service.WARNING_STATUS:
+                alert = False  # Don't alert for recovery from WARNING status
+
+        c = Context({
+            'service': service,
+            'users': telegram_aliases,
+            'host': settings.WWW_HTTP_HOST,
+            'scheme': settings.WWW_SCHEME,
+            'alert': alert,
+            'jenkins_api': settings.JENKINS_API,
+        })
+        message = Template(telegram_template).render(c)
+        self._send_telegram_alert(message, service)
+
+    def _send_telegram_alert(self, message, service):
+
+        telegram_token = env.get('TELEGRAM_BOT_TOKEN')
+        chat_id = env.get('TELEGRAM_CHAT_ID')
+
+        tb = telebot.TeleBot(telegram_token)
+        tb.send_message(chat_id, message)
+
+
+class TelegramAlertUserData(AlertPluginUserData):
+    name = "Telegram Plugin"
+    telegram_id = models.CharField(max_length=50, blank=True)
 
 class CheckGroupMixin(models.Model):
     class Meta:
