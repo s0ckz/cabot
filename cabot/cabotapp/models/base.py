@@ -17,12 +17,16 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_save
 from django.utils import timezone
+from django.template import Template
+from django.template import Context
 from polymorphic.models import PolymorphicModel
 
 from ..alert import AlertPlugin, AlertPluginUserData, send_alert, send_alert_update
 from ..calendar import get_events
 from ..graphite import parse_metric
 from ..tasks import update_instance, update_service
+
+from os import environ as env
 
 RAW_DATA_LIMIT = 5000
 
@@ -93,6 +97,8 @@ def get_custom_check_plugins():
         custom_check_types.append(custom_check)
 
     return custom_check_types
+
+telegram_template = """{{ service.name }} {% if service.overall_status == service.PASSING_STATUS %}OK{% else %}{{ service.overall_status }}{% endif %}: {{ scheme }}://{{ host }}{% url 'service' pk=service.id %}. {% if service.overall_status != service.PASSING_STATUS %}Checks failing: {% for check in service.all_failing_checks %}{% if check.check_category == 'Jenkins check' %}{% if check.last_result.error %}{{ check.name }} ({{ check.last_result.error|safe }}) {{jenkins_api}}job/{{ check.name }}/{{ check.last_result.job_number }}/console{% else %}{{ check.name }} {{jenkins_api}}/job/{{ check.name }}/{{check.last_result.job_number}}/console{% endif %}{% else %}{{ check.name }}{% if check.last_result.error %} ({{ check.last_result.error|safe }}){% endif %}{% endif %}{% endfor %}{% endif %}{% if alert %}{% for alias in users %}@{{ alias }}{% endfor %}{% endif %}"""
 
 class TelegramAlert(AlertPlugin):
     name = "Telegram"
